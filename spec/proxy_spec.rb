@@ -127,6 +127,27 @@ describe Proxy do
     end
   end
 
+  it "should invoke on_finish callback when a proxied connection is terminated" do
+    finished = false
+    EM.run do
+      echo = EventMachine::start_server "127.0.0.1", 8000, ConnectionClosingServer
+      client = nil
+      EventMachine.add_timer(0.5) do
+        client = EventMachine::connect "127.0.0.1", 8080, SimpleClient
+      end
+
+      Proxy.start(:host => "0.0.0.0", :port => 8080, :debug => false) do |conn|
+        conn.server :echo, :host => "127.0.0.1", :port => 8000, :relay_client => true, :relay_server => true
+        conn.on_finish do |backend|
+          backend.should == :echo
+          finished = true
+          EventMachine.stop
+        end
+      end
+    end
+    finished.should == true
+  end
+
   it "should not invoke on_data when :relay_client is passed as server option" do
     lambda {
       EM.run do
